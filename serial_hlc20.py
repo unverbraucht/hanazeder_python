@@ -1,4 +1,4 @@
-!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 """
@@ -26,28 +26,14 @@
 
 import re, os, time
 import serial
-import MySQLdb as mdb
 
 ## Konfiguration ##
-# MySQL
-MYSQL_HOST 		= "YOUR_MYSQL_SERVER"		# Hostname or IP-address of the MySQL server
-MYSQL_USER 		= "YOUR_MYSQL_USER"			# Username for MySQL connection
-MYSQL_PASSWORD 	= "YOUR_MYSQL_PASSWORD"		# Password for MySQL connection
-MYSQL_DATABASE 	= "YOUR_MYSQL_DATABASE"		# Database for MySQL connection
 
 # serial port for hanazeder
-RS232_DEVICE 	= "YOUR_RS232_DEVICE"		# Path to your RS232-device, e.g. /dev/ttyUSB0 for USB port or /dev/ttyS0 for serial port
-
-# openHAB
-OPENHAB_SERVER 	= "YOUR_OPENHAB_SERVER"		# Hostname or IP-address of the openHAB server
-OPENHAB_PORT	= "YOUR_OPENHAT_PORT"		# portnumber for openHAB REST API (8080 in default)
+RS232_DEVICE 	= "/dev/ttyUSB0"		# Path to your RS232-device, e.g. /dev/ttyUSB0 for USB port or /dev/ttyS0 for serial port
 
 # Variablen
 jetzt = str(int(time.mktime(time.localtime())))
-
-# Datenbank
-con = mdb.connect(MYSQL_HOST, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DATABASE)
-cur = con.cursor()
 
 # Funktionen
 def HexToByte(hexStr):
@@ -74,11 +60,11 @@ def DecToHex(decStr):
 def HLC20read(modnr, partyp, parind):
     """Reads from HLC20 and returns the response"""
     byte = HexToByte('98 ' + modnr + ' ' + partyp + ' ' + parind)
-    print "\n>"+ByteToHex(byte)
+    print("\n>"+ByteToHex(byte))
     ser.write(byte)
     time.sleep(0.1)
     x=ser.read(1024)
-    print ByteToHex(x)
+    print(ByteToHex(x))
     erg = ByteToHex(x).split(' ', 3)
     return int(str(erg[1])+str(erg[2]), 16)
 
@@ -89,11 +75,11 @@ def HLC20write(modnr, partyp, parind, wert):
     99 01 1F 01 00 01 c2
     """
     byte = HexToByte('99 ' + modnr + ' ' + partyp + ' ' + parind + ' ' + DecToHex(int(wert)))
-    print "\n>"+ByteToHex(byte)
+    print("\n>"+ByteToHex(byte))
     ser.write(byte)
     time.sleep(0.2)
     x=ser.read(1024)
-    print ByteToHex(x)
+    print(ByteToHex(x))
     erg = ByteToHex(x).split(' ', 3)
     return int(str(erg[1])+str(erg[2]), 16)
 
@@ -108,28 +94,28 @@ ser = serial.Serial(
 )
 
 # Initialisierung Vebindung zur HLC20 (95 30 73)
-byte = HexToByte('95 30 73')
-print "\n>"+ByteToHex(byte)
+byte = HexToByte('EE 00 01 00 C4')
+print("\n>"+ByteToHex(byte))
 ser.write(byte)
 time.sleep(1)
 x=ser.read(1024)
-print ByteToHex(x)
+print(ByteToHex(x))
 
-# Sensorenabfrage
-cur.execute("SELECT * FROM `hanazeder_config` WHERE status = 1;")
-rows = cur.fetchall()
-for row in rows:
-    wert = HLC20read(row[6], row[7], row[8])
-    print row[4]
-    if wert > 32767:
-        wert -= 65536
-    if row[4] == "temp":
-        wert = float(wert)/10
-    print wert
-    sqlquery = "INSERT INTO `hanazeder_werte` (`time`, `sensor`, `value`) VALUES (FROM_UNIXTIME("+jetzt+"), "+str(row[0])+", "+str(wert)+");"
-    cur.execute(sqlquery)
-    con.commit()
-    print 'curl --header "Content-Type: text/plain" --request PUT --data "' + str(wert) + '" http://' + OPENHAB_SERVER + ':' + OPENHAB_PORT + '/rest/items/' + str(row[10]) + '/state'
-    os.system('curl --header "Content-Type: text/plain" --request PUT --data "' + str(wert) + '" http://' + OPENHAB_SERVER + ':' + OPENHAB_PORT + '/rest/items/' + str(row[10]) + '/state')
+# # Sensorenabfrage
+# cur.execute("SELECT * FROM `hanazeder_config` WHERE status = 1;")
+# rows = cur.fetchall()
+# for row in rows:
+#     wert = HLC20read(row[6], row[7], row[8])
+#     print row[4]
+#     if wert > 32767:
+#         wert -= 65536
+#     if row[4] == "temp":
+#         wert = float(wert)/10
+#     print wert
+#     sqlquery = "INSERT INTO `hanazeder_werte` (`time`, `sensor`, `value`) VALUES (FROM_UNIXTIME("+jetzt+"), "+str(row[0])+", "+str(wert)+");"
+#     cur.execute(sqlquery)
+#     con.commit()
+#     print 'curl --header "Content-Type: text/plain" --request PUT --data "' + str(wert) + '" http://' + OPENHAB_SERVER + ':' + OPENHAB_PORT + '/rest/items/' + str(row[10]) + '/state'
+#     os.system('curl --header "Content-Type: text/plain" --request PUT --data "' + str(wert) + '" http://' + OPENHAB_SERVER + ':' + OPENHAB_PORT + '/rest/items/' + str(row[10]) + '/state')
 
-ser.close()
+# ser.close()
