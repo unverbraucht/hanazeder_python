@@ -36,26 +36,23 @@ RS232_DEVICE 	= "/dev/ttyUSB0"		# Path to your RS232-device, e.g. /dev/ttyUSB0 f
 jetzt = str(int(time.mktime(time.localtime())))
 
 # Funktionen
-def HexToByte(hexStr):
+def HexToByte(hexStr: str) -> bytes:
     """
     Convert a string hex byte values into a byte string. The Hex Byte values may
     or may not be space separated.
     """
     hexStr = ''.join( hexStr.split(" ") )
-    return ''.join( ["%c" % chr( int ( hexStr[i:i+2],16 ) ) for i in range(0, len( hexStr ), 2) ] )
+    return bytes.fromhex(hexStr)
 	
-def ByteToHex(byteStr):
+def ByteToHex(bytes: bytes) -> str:
     """
     Convert a byte string to it's hex string representation e.g. for output.
     """
-    return''.join( [ "%02X " % ord( x ) for x in byteStr]).strip()
+    return bytes.hex()
 
-def DecToHex(decStr):
+def DecToHex(decimal: int):
     """return the hexadecimal string representation of integer n"""
-    hexStr = hex((1 << 16) + decStr)[2:]
-    if len(hexStr) > 4:
-        hexStr = hexStr[1:]
-    return hexStr[:2] + " " + hexStr[2:]
+    return int.to_bytes(2, byteorder='big')
 
 def HLC20read(modnr, partyp, parind):
     """Reads from HLC20 and returns the response"""
