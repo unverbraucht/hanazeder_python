@@ -56,7 +56,7 @@ def DecToHex(decimal: int):
 
 def HLC20read(modnr, partyp, parind):
     """Reads from HLC20 and returns the response"""
-    byte = HexToByte('98 ' + modnr + ' ' + partyp + ' ' + parind)
+    byte = HexToByte('EE ' + modnr + ' ' + partyp + ' ' + parind)
     print("\n>"+ByteToHex(byte))
     ser.write(byte)
     time.sleep(0.1)
