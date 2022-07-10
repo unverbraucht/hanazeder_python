@@ -1,6 +1,6 @@
 import serial
 
-from .comm import hanazeder_encode_msg, hanazeder_read
+from .comm import hanazeder_encode_msg, hanazeder_read, hanazeder_decode_num
 
 class ConnectError(Exception):
     pass
@@ -34,16 +34,17 @@ class HanazederFP:
         self.connected = True
         return self.connected
     
-    def create_read_register_msg(self, register) -> bytes:
+    def create_read_register_msg(self, register: int) -> bytes:
         request = bytes(b'\x04\x01') + bytes(register)
         return hanazeder_encode_msg(self.HEADER, self.last_msg_num, request)
     
-    def read_register(self, register):
+    def read_register(self, register: int) -> float:
         if not self.connected:
             raise NotConnectedError()
         self.last_msg_num = (self.last_msg_num + 1) % 256
         msg = self.create_read_register_msg(register)
         self.serial.write(msg)
-        value = hanazeder_read(self.HEADER, self.last_msg_num, self.serial)
+        response = hanazeder_read(self.HEADER, self.last_msg_num, self.serial)
+        value = hanazeder_decode_num(self.HEADER, response)
         return value
         
