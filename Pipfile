@@ -5,8 +5,11 @@ name = "pypi"
 
 [packages]
 pyserial = "*"
+crccheck = "*"
 
 [dev-packages]
+pytest = "*"
+pytest-mock = "*"
 
 [requires]
 python_version = "3"
