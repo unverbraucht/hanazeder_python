@@ -1,3 +1,4 @@
+from .types import SerialOrNetwork
 from .encoding import *
 
 from serial import Serial
@@ -24,9 +25,9 @@ def hanazeder_decode_num(header, value) -> float:
     int_val = int.from_bytes(value, byteorder='little', signed=True)
     return int_val / 10
 
-def hanazeder_read(expected_header: bytes, msg_num: int, serial: Serial) -> bytes:
+def hanazeder_read(expected_header: bytes, msg_num: int, connection: SerialOrNetwork) -> bytes:
     # start by reading at least four bytes
-    header = serial.read(4)
+    header = connection.read(4)
     if len(header) < 4:
         raise ReadtimeoutException("Could not read header")
     if header[0] is not expected_header[0]:
@@ -34,9 +35,9 @@ def hanazeder_read(expected_header: bytes, msg_num: int, serial: Serial) -> byte
     if header[1] != msg_num:
         raise InvalidHeaderException(f'Expecting message number {msg_num} but got {header[1]}')
     value_size = header[3]
-    value = serial.read(value_size)
+    value = connection.read(value_size)
     # Always followed by one byte checksum
-    checksum = serial.read()
+    checksum = connection.read()
     crc = Crc8Maxim()
     crc.process(header[1:])
     crc.process(value)
