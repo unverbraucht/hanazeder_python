@@ -22,5 +22,5 @@ This is the number of the parameter or the port of the module (starting with 0)
 2. install python dependencies ```pipenv install```
 3. add your script user to the ```tty```-group ```sudo addgroup pi tty```
 ## example usage
-Read from a serial to TCP converter (like ser2net) at 192.168.1.2 port 2001 the register 1
-python -m hanazeder.read --address 192.168.1.2 --port 2001 --register 1
+Read from a serial to TCP converter (like ser2net) at 192.168.1.2 port 2001 the register 1:
+```python -m hanazeder.read --address 192.168.1.2 --port 2001 --register 1```

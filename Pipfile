@@ -10,6 +10,9 @@ crccheck = "*"
 [dev-packages]
 pytest = "*"
 pytest-mock = "*"
+build = "*"
+twine = "*"
+bumpver = "*"
 
 [requires]
 python_version = "3"
