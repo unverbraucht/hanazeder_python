@@ -26,7 +26,7 @@ def main() -> int:
 
     conn = HanazederFP(serial_port=args.serial_port, address=args.address, port=args.port)
     conn.connect()
-    value = conn.read_register(args.register)
+    value = conn.read_register(int(args.register))
     print(f'Register {args.register} is {value}')
     return 0
 

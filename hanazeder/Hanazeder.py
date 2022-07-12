@@ -49,7 +49,7 @@ class HanazederFP:
         return self.connected
     
     def create_read_register_msg(self, register: int) -> bytes:
-        request = bytes(b'\x04\x01') + bytes(register)
+        request = bytes(b'\x04\x01') + register.to_bytes(1, byteorder='big')
         return hanazeder_encode_msg(self.HEADER, self.last_msg_num, request)
     
     def read_register(self, register: int) -> float:
@@ -57,6 +57,7 @@ class HanazederFP:
             raise NotConnectedError()
         self.last_msg_num = (self.last_msg_num + 1) % 256
         msg = self.create_read_register_msg(register)
+        print(f'Sending mesg {msg}')
         self.connection.write(msg)
         response = hanazeder_read(self.HEADER, self.last_msg_num, self.connection)
         value = hanazeder_decode_num(self.HEADER, response)
