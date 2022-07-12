@@ -1,5 +1,5 @@
 import serial
 import socket
-from typing import TypeAlias
+from typing import Union
 
-SerialOrNetwork: TypeAlias = socket.socket | serial.Serial | bytearray
+SerialOrNetwork = Union[socket.socket, serial.Serial, bytearray]

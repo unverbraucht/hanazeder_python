@@ -43,7 +43,7 @@ class HanazederFP:
         handshake = hanazeder_encode_msg(self.HEADER, 0, b'\x01\x00')
         self.connection.write(handshake)
         response = self.connection.read(size=10)
-        if response is not b'\xee\x00\xf0\x05\x00\x00\x02\x01\x06\xf9':
+        if response != b'\xee\x00\xf0\x05\x00\x00\x02\x01\x06\xf9':
             raise ConnectError(f'Wrong response for handshake, got {response}')
         self.connected = True
         return self.connected

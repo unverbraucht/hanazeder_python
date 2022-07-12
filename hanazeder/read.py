@@ -6,7 +6,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--serial-port", help="set serial port",
                     type=str)
-    parser.add_argument("--register", help="register to read",
+    parser.add_argument("register", help="register to read",
                     type=int)
     parser.add_argument("--address", help="connect to HOSTNAME, needs port as well",
                     type=str)
@@ -21,10 +21,12 @@ def main() -> int:
     if args.address and not args.port:
         print('Specify port together with address')
         return 2
+    
+    print(f'Reading register {args.register}')
 
     conn = HanazederFP(serial_port=args.serial_port, address=args.address, port=args.port)
     conn.connect()
-    value = conn.read_register(parser.register)
+    value = conn.read_register(args.register)
     print(f'Register {args.register} is {value}')
     return 0
 
