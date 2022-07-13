@@ -12,6 +12,6 @@ def byte_to_hex(bytes: bytes) -> str:
     """
     return bytes.hex()
 
-def dec_to_hex(decimal: int):
+def dec_to_bytes(decimal: int):
     """return the hexadecimal string representation of integer n"""
-    return int.to_bytes(2, byteorder='little')
+    return decimal.to_bytes(2, byteorder='little')

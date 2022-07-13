@@ -1,4 +1,4 @@
-from .Hanazeder import HanazederFP
+from .Hanazeder import HanazederFP, SENSOR_LABELS
 import argparse
 import sys
 
@@ -6,8 +6,10 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--serial-port", help="set serial port",
                     type=str)
-    parser.add_argument("register", help="register to read",
+    parser.add_argument("--sensor", help="sensor to read",
                     type=int)
+    parser.add_argument("--energy", help="read energy values", action="store_true")
+    parser.add_argument("--debug", help="print low-level messages", action="store_true")
     parser.add_argument("--address", help="connect to HOSTNAME, needs port as well",
                     type=str)
     parser.add_argument("--port", help="connect to HOSTNAME on port PORT",
@@ -21,14 +23,40 @@ def main() -> int:
     if args.address and not args.port:
         print('Specify port together with address')
         return 2
-    
-    print(f'Reading register {args.register}')
+    if not args.sensor and not args.energy:
+        print("Don't know what to do, please add --energy and/or --sensor")
 
-    conn = HanazederFP(serial_port=args.serial_port, address=args.address, port=args.port)
+    conn = HanazederFP(serial_port=args.serial_port, address=args.address, port=args.port, debug=args.debug)
     conn.read_information()
     print(f'Connected to {conn.device_type.name} with version {conn.version}')
-    value = conn.read_sensor(int(args.register))
-    print(f'Register {args.register} is {value}')
+
+    if args.sensor is not None:
+        print(f'Reading sensor {args.sensor}')
+        value = conn.read_sensor(int(args.sensor))
+        # Read label from fixed list
+        name = None
+        configs = conn.read_config_block(27, 15)
+        config_label = configs[args.sensor]
+        if config_label.value > 0:
+            name = SENSOR_LABELS[config_label.value]
+        else:
+            # Read label from device
+            name = conn.read_sensor_name(args.sensor)
+
+        # idx = 0
+        # for config in configs:
+        #     idx = idx + 1
+        #     if config.value > 0:
+        #         print(f'Label {idx} is {SENSOR_LABELS[config.value]}')
+        
+        print(f'Sensor {name} ({args.sensor}) is {value}')
+
+    if args.energy:
+        energy = conn.read_energy()
+        print('Energy readings:')
+        print(f'  Total   {energy[0]}')
+        print(f'  Current {energy[1]}')
+        print(f'  Impulse {energy[2]}')
     return 0
 
 if __name__ == '__main__':
