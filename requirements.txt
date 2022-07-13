@@ -5,6 +5,6 @@
 #    pipenv lock --requirements
 #
 
--i https://pypi.org/simple
+-i https://pypi.org/simple/
 crccheck==1.1
 pyserial==3.5
