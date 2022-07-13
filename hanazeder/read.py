@@ -31,17 +31,18 @@ def main() -> int:
     print(f'Connected to {conn.device_type.name} with version {conn.version}')
 
     if args.sensor is not None:
+        sensor_idx = args.sensor - 1
         print(f'Reading sensor {args.sensor}')
-        value = conn.read_sensor(int(args.sensor))
+        value = conn.read_sensor(sensor_idx)
         # Read label from fixed list
         name = None
         configs = conn.read_config_block(27, 15)
-        config_label = configs[args.sensor]
+        config_label = configs[sensor_idx]
         if config_label.value > 0:
             name = SENSOR_LABELS[config_label.value]
         else:
             # Read label from device
-            name = conn.read_sensor_name(args.sensor)
+            name = conn.read_sensor_name(sensor_idx)
 
         # idx = 0
         # for config in configs:
