@@ -1,8 +1,10 @@
 import serial
 import socket
+from enum import IntEnum
+
 
 from .types import SerialOrNetwork
-from .comm import hanazeder_encode_msg, hanazeder_read, hanazeder_decode_num
+from .comm import hanazeder_decode_byte, hanazeder_encode_msg, hanazeder_read, hanazeder_decode_num
 
 
 class ConnectError(Exception):
@@ -14,17 +16,31 @@ class NotConnectedError(Exception):
 class ConnectionInvalidError(Exception):
     pass
 
+class DeviceType(IntEnum):
+    FP10 = 0
+    FP6 = 1
+    FP3 = 2
+    FP2 = 3
+    FP1 = 4
+    SH3 = 5
+    SH2 = 6
+    SH1 = 7
+
+class HardwarePlatform(IntEnum):
+    FP10 = 0
+    FP3 = 1
+
 class HanazederFP:
     HEADER = b'\xEE'
-    last_msg_num = 1
-    connected = False
+    last_msg_num = 0
+    connected = True
     connection: SerialOrNetwork
 
     def __init__(self,
         serial_port="/dev/ttyUSB0",
         address=None,
         port=None,
-        timeout=1):
+        timeout=1000):
         if serial_port:
             self.connection = serial.Serial(
                 port=serial_port,
@@ -35,31 +51,43 @@ class HanazederFP:
                 timeout=timeout
             )
         elif address and port:
-            self.connection = socket.create_connection((address, port), timeout).makefile()
+            self.connection = socket.create_connection((address, port), timeout).makefile('rwb')
         else:
             raise ConnectionInvalidError("Specify either address and port or serial port")
     
-    def connect(self) -> bool:
-        handshake = hanazeder_encode_msg(self.HEADER, 0, b'\x01\x00')
-        self.connection.write(handshake)
-        response = self.connection.read(size=10)
-        if response != b'\xee\x00\xf0\x05\x00\x00\x02\x01\x06\xf9':
-            raise ConnectError(f'Wrong response for handshake, got {response}')
+    def send_msg(self, msg: bytes) -> bool:
+        self.connection.write(msg)
+        self.connection.flush()
+        msg_num = self.last_msg_num
+        self.last_msg_num = (self.last_msg_num + 1) % 256
+        return msg_num
+
+    
+    def create_read_information_msg(self) -> bool:
+        return hanazeder_encode_msg(self.HEADER, self.last_msg_num, b'\x01\x00')
+    
+    def read_information(self) -> bool:
+        msg_num = self.send_msg(self.create_read_information_msg())
+        response = hanazeder_read(self.HEADER, msg_num, self.connection)
+        # 00 f0 05 00 00 02 01 06 f9
+        self.device_type = DeviceType(response[0])
+        self.hardware_platform = HardwarePlatform(response[1])
+        self.connection_flags = response[2]
+        if (len(response) >= 5):
+            self.version = f'{response[3]}.{response[4]}'
+
         self.connected = True
         return self.connected
     
-    def create_read_register_msg(self, register: int) -> bytes:
+    def create_read_sensor_msg(self, register: int) -> bytes:
         request = bytes(b'\x04\x01') + register.to_bytes(1, byteorder='big')
         return hanazeder_encode_msg(self.HEADER, self.last_msg_num, request)
     
-    def read_register(self, register: int) -> float:
+    def read_sensor(self, register: int) -> float:
         if not self.connected:
             raise NotConnectedError()
-        self.last_msg_num = (self.last_msg_num + 1) % 256
-        msg = self.create_read_register_msg(register)
-        print(f'Sending mesg {msg}')
-        self.connection.write(msg)
-        response = hanazeder_read(self.HEADER, self.last_msg_num, self.connection)
+        msg_num = self.send_msg(self.create_read_sensor_msg(register))
+        response = hanazeder_read(self.HEADER, msg_num, self.connection)
         value = hanazeder_decode_num(self.HEADER, response)
         return value
         

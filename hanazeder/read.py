@@ -25,8 +25,9 @@ def main() -> int:
     print(f'Reading register {args.register}')
 
     conn = HanazederFP(serial_port=args.serial_port, address=args.address, port=args.port)
-    conn.connect()
-    value = conn.read_register(int(args.register))
+    conn.read_information()
+    print(f'Connected to {conn.device_type.name} with version {conn.version}')
+    value = conn.read_sensor(int(args.register))
     print(f'Register {args.register} is {value}')
     return 0
 

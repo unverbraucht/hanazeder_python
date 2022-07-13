@@ -19,11 +19,15 @@ class IllegalArgumentException(Exception):
     pass
 
 def hanazeder_decode_num(header, value) -> float:
+    # TODO: don't unescape here, unescape in hanazeder_read
     unescaped = value.replace(header + header, header)
     if unescaped == SENSOR_GONE:
         return None
     int_val = int.from_bytes(value, byteorder='little', signed=True)
     return int_val / 10
+
+def hanazeder_decode_byte(byte: bytes) -> int:
+    return int.from_bytes(byte, byteorder='little')
 
 def hanazeder_read(expected_header: bytes, msg_num: int, connection: SerialOrNetwork) -> bytes:
     # start by reading at least four bytes
@@ -37,13 +41,14 @@ def hanazeder_read(expected_header: bytes, msg_num: int, connection: SerialOrNet
     value_size = header[3]
     value = connection.read(value_size)
     # Always followed by one byte checksum
-    checksum = connection.read()
+    checksum = connection.read(1)
     crc = Crc8Maxim()
     crc.process(header[1:])
     crc.process(value)
     calculated_crc = crc.finalbytes()
     if calculated_crc != checksum:
         raise ChecksumNotMatchingException(f'Expected checksum {calculated_crc} but got {checksum}')
+    # TODO: unescape header in value
     return value
 
 def hanazeder_encode_msg(header: bytes, msg_num: int, request: bytes) -> bytes:
@@ -51,6 +56,7 @@ def hanazeder_encode_msg(header: bytes, msg_num: int, request: bytes) -> bytes:
         raise IllegalArgumentException("msg_num must be between 0 and 255")
     if len(header) != 1:
         raise IllegalArgumentException("header must be single byte")
+    # TODO: escape header in request
     msg = bytearray(header)
     msg.append(msg_num)
     msg += bytearray(request)
