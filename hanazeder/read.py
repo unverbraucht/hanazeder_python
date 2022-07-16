@@ -28,7 +28,7 @@ class CliReader:
     def config_block_read(self, configs: List[ConfigEntry]):
         config_label = configs[self.sensor_idx]
         if config_label.value > 0:
-            sensor_name = SENSOR_LABELS[config_label.value]
+            self.sensor_name = SENSOR_LABELS[config_label.value]
 
     async def main(self) -> int:
         parser = argparse.ArgumentParser()

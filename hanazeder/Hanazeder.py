@@ -294,7 +294,7 @@ class HanazederFP:
         request = bytes(b'\x13\x01') + idx.to_bytes(1, byteorder='little')
         return hanazeder_encode_msg(self.HEADER, self.last_msg_num, request)
     
-    async def read_sensor_name(self, idx: int, cb: Callable[[str], Any]):
+    async def read_sensor_name(self, idx: int, cb: Callable[[int, str], Any]):
         if not self.connected:
             raise NotConnectedError()
 
