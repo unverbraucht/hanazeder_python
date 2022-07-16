@@ -1,3 +1,4 @@
+from enum import IntEnum
 from .types import SerialOrNetwork
 from .encoding import *
 
@@ -17,6 +18,77 @@ class InvalidHeaderException(Exception):
 
 class IllegalArgumentException(Exception):
     pass
+
+class ReaderState(IntEnum):
+    LOOKING_FOR_HEADER = 0
+    EXPECTING_MSG_NO = 1
+    EXPECTING_TYPE = 2
+    EXPECTING_AFTER_TYPE = 3
+    EXPECTING_SIZE = 4
+    READING_PAYLOAD = 5
+    EXPECTING_CHECKSUM = 6
+    ESCAPING = 7
+
+
+class HanazederPacket:
+    msg_no = None
+    msg_type = None
+    msg_size = None
+    msg = None
+class HanazederReader:
+    state = ReaderState.LOOKING_FOR_HEADER
+    packet: HanazederPacket = None
+
+    def __init__(self, connection, header):
+        self.connection = connection
+        self.header = header[0]
+    
+    def read(self, byte: int) -> HanazederPacket:
+        finished_packet = self.handle_byte(byte)
+        if finished_packet:
+            return finished_packet
+
+    def handle_byte(self, byte: int) -> HanazederPacket:
+        if self.state != ReaderState.ESCAPING \
+                and self.state != ReaderState.LOOKING_FOR_HEADER \
+                and self.state != ReaderState.EXPECTING_CHECKSUM:
+            self.crc.process(byte.to_bytes(1, byteorder='little'))
+
+        if self.state == ReaderState.LOOKING_FOR_HEADER:
+            if byte == self.header:
+                self.packet = HanazederPacket()
+                self.state = ReaderState.EXPECTING_MSG_NO
+                self.crc = Crc8Maxim()
+        elif self.state == ReaderState.EXPECTING_MSG_NO:
+            self.packet.msg_no = byte
+            self.state = ReaderState.EXPECTING_TYPE
+        elif self.state == ReaderState.EXPECTING_TYPE:
+            self.packet.msg_type = byte
+            self.state = ReaderState.EXPECTING_SIZE
+        elif self.state == ReaderState.EXPECTING_SIZE:
+            self.packet.msg_size = byte
+            self.packet.msg = bytearray()
+            self.state = ReaderState.READING_PAYLOAD
+        elif self.state == ReaderState.READING_PAYLOAD or self.state == ReaderState.ESCAPING:
+            if byte == self.header and self.state == ReaderState.READING_PAYLOAD:
+                # Resume reading
+                self.state = ReaderState.ESCAPING
+            else:
+                self.packet.msg += bytearray(byte.to_bytes(1, byteorder='little'))
+                self.packet.msg_size = self.packet.msg_size - 1
+            if self.packet.msg_size <= 0:
+                self.state = ReaderState.EXPECTING_CHECKSUM
+            else:
+                self.state = ReaderState.READING_PAYLOAD
+        elif self.state == ReaderState.EXPECTING_CHECKSUM:
+            self.state = ReaderState.LOOKING_FOR_HEADER
+            calculated_crc = self.crc.finalbytes()
+            if calculated_crc[0] != byte:
+                print('Wrong checksum')
+            else:
+                # Packet fully read
+                return self.packet
+
 
 def hanazeder_decode_num(header, value) -> float:
     # TODO: don't unescape here, unescape in hanazeder_read
