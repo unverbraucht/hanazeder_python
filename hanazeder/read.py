@@ -13,7 +13,7 @@ class CliReader:
     def info_read(self, dev):
         print(f'Connected to {self.conn.device_type.name} with version {self.conn.version}')
     
-    def sensor_read(self, val: float):
+    def sensor_read(self, idx: int, val: float):
         self.sensor_val = val
     
     def energy_read(self, energy):
@@ -22,11 +22,10 @@ class CliReader:
         print(f'  Current {energy[1]}')
         print(f'  Impulse {energy[2]}')
     
-    def sensor_name_read(self, name: str):
+    def sensor_name_read(self, idx: int, name: str):
         self.sensor_custom_name = name
 
     def config_block_read(self, configs: List[ConfigEntry]):
-        global sensor_name
         config_label = configs[self.sensor_idx]
         if config_label.value > 0:
             sensor_name = SENSOR_LABELS[config_label.value]

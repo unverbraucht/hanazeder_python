@@ -260,10 +260,13 @@ class HanazederFP:
         request = bytes(b'\x04\x01') + idx.to_bytes(1, byteorder='little')
         return hanazeder_encode_msg(self.HEADER, self.last_msg_num, request)
     
-    async def read_sensor(self, idx: int, cb: Callable[[float], Any]):
+    async def read_sensor(self, idx: int, cb: Callable[[int, float], Any]):
         if not self.connected:
             raise NotConnectedError()
-        await self.send_msg(self.create_read_sensor_msg(idx), cb, self.parse_sensor_packet)
+        
+        def cb_wrapper(value: float):
+            cb(idx, value)
+        await self.send_msg(self.create_read_sensor_msg(idx), cb_wrapper, self.parse_sensor_packet)
     
     def parse_sensor_packet(self, msg: HanazederPacket) -> float:
         value = hanazeder_decode_num(self.HEADER, msg.msg)
@@ -294,7 +297,10 @@ class HanazederFP:
     async def read_sensor_name(self, idx: int, cb: Callable[[str], Any]):
         if not self.connected:
             raise NotConnectedError()
-        await self.send_msg(self.create_read_sensor_name_msg(idx), cb, self.parse_sensor_name_packet)
+
+        def cb_wrapper(name: str):
+            cb(idx, name)
+        await self.send_msg(self.create_read_sensor_name_msg(idx), cb_wrapper, self.parse_sensor_name_packet)
     
     def parse_sensor_name_packet (self, msg: HanazederPacket) -> str:
         if msg.msg and len(msg.msg) > 1:
