@@ -200,7 +200,7 @@ class HanazederFP:
             # self.connection = socket.create_connection((address, port), timeout).makefile('rwb')
         else:
             raise ConnectionInvalidError("Specify either address and port or serial port")
-        self.reader = HanazederReader(self.connection, self.HEADER)
+        self.reader = HanazederReader(self.connection, self.HEADER, self.debug)
         if serial_port:
             self.loop.add_reader(self.connection, self.read_byte)
     
@@ -218,14 +218,15 @@ class HanazederFP:
         self.last_msg_num = (self.last_msg_num + 1) % 256
         return msg_num
     
-    async def read_byte(self):
-        byte = await self.connection.read(1)
-        packet = self.reader.read(byte)
+    def read_byte(self):
+        byte = self.connection.read(1)
+        packet = self.reader.read(byte[0])
         if packet:
             self.handle_packet(packet)
 
     def handle_packet(self, packet: HanazederPacket):
-        print(f'Packet read: {packet}')
+        if self.debug:
+            print(f'Packet read: {packet}')
         found = False
         for index, req in enumerate(self.queue):
             if req.msg_no == packet.msg_no:

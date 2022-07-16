@@ -39,9 +39,10 @@ class HanazederReader:
     state = ReaderState.LOOKING_FOR_HEADER
     packet: HanazederPacket = None
 
-    def __init__(self, connection, header):
+    def __init__(self, connection, header, debug):
         self.connection = connection
         self.header = header[0]
+        self.debug = debug
     
     def read(self, byte: int) -> HanazederPacket:
         finished_packet = self.handle_byte(byte)
@@ -53,6 +54,8 @@ class HanazederReader:
                 and self.state != ReaderState.LOOKING_FOR_HEADER \
                 and self.state != ReaderState.EXPECTING_CHECKSUM:
             self.crc.process(byte.to_bytes(1, byteorder='little'))
+        if self.debug:
+            print(f'Handle_byte state out {self.state}')
 
         if self.state == ReaderState.LOOKING_FOR_HEADER:
             if byte == self.header:
@@ -88,12 +91,12 @@ class HanazederReader:
             else:
                 # Packet fully read
                 return self.packet
+        if self.debug:
+            print(f'Handle_byte state out {self.state}')
 
 
 def hanazeder_decode_num(header, value) -> float:
-    # TODO: don't unescape here, unescape in hanazeder_read
-    unescaped = value.replace(header + header, header)
-    if unescaped == SENSOR_GONE:
+    if value == SENSOR_GONE:
         return None
     int_val = int.from_bytes(value, byteorder='little', signed=True)
     return int_val / 10
