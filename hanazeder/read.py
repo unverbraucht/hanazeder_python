@@ -10,22 +10,22 @@ class CliReader:
     sensor_custom_name = None
     sensor_idx = None
 
-    def info_read(self, dev):
+    async def info_read(self, dev):
         print(f'Connected to {self.conn.device_type.name} with version {self.conn.version}')
     
-    def sensor_read(self, idx: int, val: float):
+    async def sensor_read(self, idx: int, val: float):
         self.sensor_val = val
     
-    def energy_read(self, energy):
+    async def energy_read(self, energy):
         print('Energy readings:')
         print(f'  Total   {energy[0]}')
         print(f'  Current {energy[1]}')
         print(f'  Impulse {energy[2]}')
     
-    def sensor_name_read(self, idx: int, name: str):
+    async def sensor_name_read(self, idx: int, name: str):
         self.sensor_custom_name = name
 
-    def config_block_read(self, configs: List[ConfigEntry]):
+    async def config_block_read(self, configs: List[ConfigEntry]):
         config_label = configs[self.sensor_idx]
         if config_label.value > 0:
             self.sensor_name = SENSOR_LABELS[config_label.value]

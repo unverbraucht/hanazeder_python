@@ -154,10 +154,7 @@ class FPProtocol(asyncio.Protocol):
     def data_received(self, data):
         if self.device.debug:
             print(f'Data received: {data}')
-        for byte in data:
-            packet = self.device.reader.read(byte)
-            if packet:
-                self.device.handle_packet(packet)
+        asyncio.get_event_loop().create_task(self.device.read_bytes(data))
 
     def connection_lost(self, exc):
         print('The server closed the connection')
@@ -175,10 +172,6 @@ class HanazederFP:
         self.debug = debug
         self.loop = asyncio.get_running_loop()
         self.queue_empty_event = asyncio.Event()
-        # self.serial_port = serial_port
-        # self.address = address
-        # self.port = port
-        # self.timeout = timeout
     
     async def open(self,
             serial_port="/dev/ttyUSB0",
@@ -218,19 +211,25 @@ class HanazederFP:
         self.last_msg_num = (self.last_msg_num + 1) % 256
         return msg_num
     
-    def read_byte(self):
+    async def read_bytes(self, bytes):
+        for byte in bytes:
+            packet = self.reader.read(byte)
+            if packet:
+                await self.handle_packet(packet)
+    
+    async def read_byte(self):
         byte = self.connection.read(1)
         packet = self.reader.read(byte[0])
         if packet:
-            self.handle_packet(packet)
+            await self.handle_packet(packet)
 
-    def handle_packet(self, packet: HanazederPacket):
+    async def handle_packet(self, packet: HanazederPacket):
         if self.debug:
             print(f'Packet read: {packet}')
         found = False
         for index, req in enumerate(self.queue):
             if req.msg_no == packet.msg_no:
-                req.cb(req.decoder(packet))
+                await req.cb(req.decoder(packet))
                 found = True
                 self.queue.pop(index)
                 break
@@ -264,8 +263,8 @@ class HanazederFP:
         if not self.connected:
             raise NotConnectedError()
         
-        def cb_wrapper(value: float):
-            cb(idx, value)
+        async def cb_wrapper(value: float):
+            await cb(idx, value)
         await self.send_msg(self.create_read_sensor_msg(idx), cb_wrapper, self.parse_sensor_packet)
     
     def parse_sensor_packet(self, msg: HanazederPacket) -> float:
@@ -298,8 +297,8 @@ class HanazederFP:
         if not self.connected:
             raise NotConnectedError()
 
-        def cb_wrapper(name: str):
-            cb(idx, name)
+        async def cb_wrapper(name: str):
+            await cb(idx, name)
         await self.send_msg(self.create_read_sensor_name_msg(idx), cb_wrapper, self.parse_sensor_name_packet)
     
     def parse_sensor_name_packet (self, msg: HanazederPacket) -> str:
