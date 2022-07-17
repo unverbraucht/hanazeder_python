@@ -56,6 +56,11 @@ class HanazederReader:
             self.crc.process(byte.to_bytes(1, byteorder='little'))
         if self.debug:
             print(f'Handle_byte {byte} state in {self.state}')
+        
+        if byte == self.header and self.state != ReaderState.LOOKING_FOR_HEADER:
+            if self.debug:
+                print(f'Found escape byte, skipping')
+            return
 
         if self.state == ReaderState.LOOKING_FOR_HEADER:
             if byte == self.header:
@@ -73,12 +78,8 @@ class HanazederReader:
             self.packet.msg = bytearray()
             self.state = ReaderState.READING_PAYLOAD
         elif self.state == ReaderState.READING_PAYLOAD or self.state == ReaderState.ESCAPING:
-            if byte == self.header and self.state == ReaderState.READING_PAYLOAD:
-                # Resume reading
-                self.state = ReaderState.ESCAPING
-            else:
-                self.packet.msg += bytearray(byte.to_bytes(1, byteorder='little'))
-                self.packet.msg_size = self.packet.msg_size - 1
+            self.packet.msg += bytearray(byte.to_bytes(1, byteorder='little'))
+            self.packet.msg_size = self.packet.msg_size - 1
             if self.packet.msg_size <= 0:
                 self.state = ReaderState.EXPECTING_CHECKSUM
             else:
