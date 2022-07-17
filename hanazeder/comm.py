@@ -55,7 +55,7 @@ class HanazederReader:
                 and self.state != ReaderState.EXPECTING_CHECKSUM:
             self.crc.process(byte.to_bytes(1, byteorder='little'))
         if self.debug:
-            print(f'Handle_byte state out {self.state}')
+            print(f'Handle_byte {byte} state in {self.state}')
 
         if self.state == ReaderState.LOOKING_FOR_HEADER:
             if byte == self.header:
