@@ -170,6 +170,7 @@ class HanazederFP:
     debug = False
     connection: SerialOrNetwork
     queue: List[HanazederRequest] = []
+    running = True
 
     def __init__(self, debug=False):
         self.debug = debug
@@ -215,9 +216,12 @@ class HanazederFP:
     async def send_msg(self, msg: bytes, cb: ParseCB, decoder: DecoderCB):
         if self.debug:
             print(f'Sending msg {byte_to_hex(msg)}')
+        restart_timeout_check = len(self.queue) == 0
         self.queue.append(HanazederRequest(msg[1], msg[2], cb, decoder))
         self.queue_empty_event.clear()
         self.connection.write(msg)
+        if restart_timeout_check and self.running:
+            self.loop.call_later(REQUEST_TIMEOUT, self.check_queue)
     
     async def read_bytes(self, bytes):
         for byte in bytes:
@@ -231,7 +235,7 @@ class HanazederFP:
         if packet:
             await self.handle_packet(packet)
     
-    async def check_queue(self):
+    def check_queue(self):
         now = time.monotonic()
         for index, request in enumerate(self.queue):
             if now - request.created > REQUEST_TIMEOUT:
@@ -240,7 +244,13 @@ class HanazederFP:
                 self.queue.pop(index)
         if len(self.queue) == 0:
             self.queue_empty_event.set()
-            
+        else:
+            # Check until queue is empty
+            if self.running:
+                self.loop.call_later(REQUEST_TIMEOUT, self.check_queue)
+
+    def shutdown(self):
+        self.running = False            
 
     async def handle_packet(self, packet: HanazederPacket):
         if self.debug:
