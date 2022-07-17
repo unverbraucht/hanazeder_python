@@ -37,6 +37,7 @@ class HanazederPacket:
     msg = None
 class HanazederReader:
     state = ReaderState.LOOKING_FOR_HEADER
+    state_before_escaping = None
     packet: HanazederPacket = None
 
     def __init__(self, connection, header, debug):
@@ -50,17 +51,24 @@ class HanazederReader:
             return finished_packet
 
     def handle_byte(self, byte: int) -> HanazederPacket:
-        if self.state != ReaderState.ESCAPING \
-                and self.state != ReaderState.LOOKING_FOR_HEADER \
-                and self.state != ReaderState.EXPECTING_CHECKSUM:
+        if self.state != ReaderState.LOOKING_FOR_HEADER \
+                and self.state != ReaderState.EXPECTING_CHECKSUM \
+                and self.state != ReaderState.ESCAPING:
             self.crc.process(byte.to_bytes(1, byteorder='little'))
         if self.debug:
             print(f'Handle_byte {byte} state in {self.state}')
         
-        if byte == self.header and self.state != ReaderState.LOOKING_FOR_HEADER:
+        if byte == self.header and self.state != ReaderState.LOOKING_FOR_HEADER \
+                and self.state != ReaderState.ESCAPING:
             if self.debug:
                 print(f'Found escape byte, skipping')
+            self.state_before_escaping = self.state
+            self.state = ReaderState.ESCAPING
             return
+        
+        if self.state == ReaderState.ESCAPING:
+            self.state = self.state_before_escaping
+            self.state_before_escaping = None
 
         if self.state == ReaderState.LOOKING_FOR_HEADER:
             if byte == self.header:
@@ -132,10 +140,13 @@ def hanazeder_encode_msg(header: bytes, msg_num: int, request: bytes) -> bytes:
         raise IllegalArgumentException("msg_num must be between 0 and 255")
     if len(header) != 1:
         raise IllegalArgumentException("header must be single byte")
-    # TODO: escape header in request
-    msg = bytearray(header)
-    msg.append(msg_num)
-    msg += bytearray(request)
-    checksum = Crc8Maxim.calcbytes(msg[1:])
-    msg += bytearray(checksum)
-    return bytes(msg)
+    # Checksum is without header
+    checksum_msg = bytearray()
+    checksum_msg.append(msg_num)
+    checksum_msg += bytearray(request)
+    checksum = Crc8Maxim.calcbytes(checksum_msg)
+    # Escape header in request
+    escaped_msg = bytearray(header) + bytearray(checksum_msg.replace(b'\xEE', b'\xEE\xEE')) + bytearray(checksum)
+    # msg += bytearray(checksum)
+    
+    return bytes(escaped_msg)

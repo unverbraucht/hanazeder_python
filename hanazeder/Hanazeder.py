@@ -207,6 +207,9 @@ class HanazederFP:
         async with self.msg_no_lock:
             msg_no = self.last_msg_num
             self.last_msg_num = (self.last_msg_num + 1) % 256
+            # Avoid escape byte
+            if self.last_msg_num == 238:
+                self.last_msg_num = 239
             return msg_no
     
     async def send_msg(self, msg: bytes, cb: ParseCB, decoder: DecoderCB):
