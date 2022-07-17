@@ -1,7 +1,7 @@
 from ast import Call
 import asyncio
 import serial
-import socket
+import time
 from enum import IntEnum
 from typing import Any, Callable, List, Tuple
 
@@ -126,6 +126,8 @@ SENSOR_LABELS = [
     "Nicht bel"
 ]
 
+REQUEST_TIMEOUT = 0.8
+
 DecoderCB = Callable[[HanazederPacket], Any]
 
 ParseCB = Callable[[Any], Any]
@@ -145,6 +147,7 @@ class HanazederRequest:
         self.cb = cb
         self.type = type
         self.decoder = decoder
+        self.created = time.monotonic()
 
 class FPProtocol(asyncio.Protocol):
     device = None
@@ -224,6 +227,17 @@ class HanazederFP:
         packet = self.reader.read(byte[0])
         if packet:
             await self.handle_packet(packet)
+    
+    async def check_queue(self):
+        now = time.monotonic()
+        for index, request in enumerate(self.queue):
+            if now - request.created > REQUEST_TIMEOUT:
+                print(f'Request #{request.msg_no} has timed out')
+                # TODO: resend
+                self.queue.pop(index)
+        if len(self.queue) == 0:
+            self.queue_empty_event.set()
+            
 
     async def handle_packet(self, packet: HanazederPacket):
         if self.debug:
