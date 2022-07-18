@@ -162,7 +162,8 @@ class FPProtocol(asyncio.Protocol):
     def connection_lost(self, exc):
         print('The server closed the connection')
         print('Stop the event loop')
-        self.device.loop.stop()
+        self.device.connected = False
+
 class HanazederFP:
     HEADER = b'\xEE'
     last_msg_num = 0
