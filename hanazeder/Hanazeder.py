@@ -126,8 +126,6 @@ SENSOR_LABELS = [
     "Nicht bel"
 ]
 
-REQUEST_TIMEOUT = 0.8
-
 DecoderCB = Callable[[HanazederPacket], Any]
 
 ParseCB = Callable[[Any], Any]
@@ -173,11 +171,12 @@ class HanazederFP:
     queue: List[HanazederRequest] = []
     running = True
 
-    def __init__(self, debug=False):
+    def __init__(self, debug=False, request_timeout=2):
         self.debug = debug
         self.loop = asyncio.get_running_loop()
         self.queue_empty_event = asyncio.Event()
         self.msg_no_lock = asyncio.Lock()
+        self.request_timeout = request_timeout
     
     async def open(self,
             serial_port="/dev/ttyUSB0",
@@ -222,7 +221,7 @@ class HanazederFP:
         self.queue_empty_event.clear()
         self.connection.write(msg)
         if restart_timeout_check and self.running:
-            self.loop.call_later(REQUEST_TIMEOUT, self.check_queue)
+            self.loop.call_later(self.request_timeout, self.check_queue)
     
     async def read_bytes(self, bytes):
         for byte in bytes:
@@ -239,7 +238,7 @@ class HanazederFP:
     def check_queue(self):
         now = time.monotonic()
         for index, request in enumerate(self.queue):
-            if now - request.created > REQUEST_TIMEOUT:
+            if now - request.created > self.request_timeout:
                 print(f'Request #{request.msg_no} has timed out')
                 # TODO: resend
                 self.queue.pop(index)
@@ -248,7 +247,7 @@ class HanazederFP:
         else:
             # Check until queue is empty
             if self.running:
-                self.loop.call_later(REQUEST_TIMEOUT, self.check_queue)
+                self.loop.call_later(self.request_timeout, self.check_queue)
 
     def shutdown(self):
         self.running = False            
