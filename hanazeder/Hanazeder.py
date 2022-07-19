@@ -159,8 +159,9 @@ class FPProtocol(asyncio.Protocol):
 
     def connection_lost(self, exc):
         print('The server closed the connection')
-        print('Stop the event loop')
         self.device.connected = False
+        # Awake all listeners
+        self.device.queue_empty_event.clear()
 
 class HanazederFP:
     HEADER = b'\xEE'
@@ -176,6 +177,7 @@ class HanazederFP:
         self.loop = asyncio.get_running_loop()
         self.queue_empty_event = asyncio.Event()
         self.msg_no_lock = asyncio.Lock()
+        self.queue_lock = asyncio.Lock()
         self.request_timeout = request_timeout
     
     async def open(self,
@@ -200,6 +202,8 @@ class HanazederFP:
         self.reader = HanazederReader(self.connection, self.HEADER, self.debug)
         if serial_port:
             self.loop.add_reader(self.connection, self.read_byte)
+        # Check queue for stuck messages periodically
+        self.loop.create_task(self.check_queue())
     
     async def wait_for_empty_queue(self):
         await self.queue_empty_event.wait()
@@ -216,12 +220,10 @@ class HanazederFP:
     async def send_msg(self, msg: bytes, cb: ParseCB, decoder: DecoderCB):
         if self.debug:
             print(f'Sending msg {byte_to_hex(msg)}')
-        restart_timeout_check = len(self.queue) == 0
-        self.queue.append(HanazederRequest(msg[1], msg[2], cb, decoder))
-        self.queue_empty_event.clear()
+        async with self.queue_lock:
+            self.queue.append(HanazederRequest(msg[1], msg[2], cb, decoder))
+            self.queue_empty_event.clear()
         self.connection.write(msg)
-        if restart_timeout_check and self.running:
-            self.loop.call_later(self.request_timeout, self.check_queue)
     
     async def read_bytes(self, bytes):
         for byte in bytes:
@@ -235,19 +237,18 @@ class HanazederFP:
         if packet:
             await self.handle_packet(packet)
     
-    def check_queue(self):
-        now = time.monotonic()
-        for index, request in enumerate(self.queue):
-            if now - request.created > self.request_timeout:
-                print(f'Request #{request.msg_no} has timed out')
-                # TODO: resend
-                self.queue.pop(index)
-        if len(self.queue) == 0:
-            self.queue_empty_event.set()
-        else:
-            # Check until queue is empty
-            if self.running:
-                self.loop.call_later(self.request_timeout, self.check_queue)
+    async def check_queue(self):
+        while self.connected:
+            now = time.monotonic()
+            async with self.queue_lock:
+                for index, request in enumerate(self.queue):
+                    if now - request.created > self.request_timeout:
+                        print(f'Request #{request.msg_no} has timed out')
+                        # TODO: resend
+                        self.queue.pop(index)
+                if len(self.queue) == 0:
+                    self.queue_empty_event.set()
+            await asyncio.sleep(self.request_timeout)
 
     def shutdown(self):
         self.running = False            
@@ -260,17 +261,18 @@ class HanazederFP:
             print(f'Packet read #{packet.msg_no} type {packet.msg_type}: {packet.msg}.')
             print(f'Queue: {packet_debug}')
         found = False
-        for index, req in enumerate(self.queue):
-            if req.msg_no == packet.msg_no:
-                await req.cb(req.decoder(packet))
-                found = True
-                self.queue.pop(index)
-                break
-        if not found:
-            print(f"Couldn't find message {packet.msg_no} in queue!")
-        else:
-            if len(self.queue) == 0:
-                self.queue_empty_event.set()
+        async with self.queue_lock:
+            for index, req in enumerate(self.queue):
+                if req.msg_no == packet.msg_no:
+                    await req.cb(req.decoder(packet))
+                    found = True
+                    self.queue.pop(index)
+                    break
+            if not found:
+                print(f"Couldn't find message {packet.msg_no} in queue!")
+            else:
+                if len(self.queue) == 0:
+                    self.queue_empty_event.set()
 
     
     async def create_read_information_msg(self) -> bool:
