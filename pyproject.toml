@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hanazeder"
-version = "0.11.2"
+version = "0.12.0"
 description = "Library and utils to read sensor data from Hanazeder FP heating pumps"
 readme = "README.md"
 authors = [{ name = "Kevin Read", email = "me@kevin-read.com" }]
@@ -35,7 +35,7 @@ Homepage = "https://github.com/unverbraucht/serial_hanazeder"
 hanazeder_read = "hanazeder.read:main"
 
 [tool.bumpver]
-current_version = "0.11.2"
+current_version = "0.12.0"
 version_pattern = "MAJOR.MINOR.PATCH"
 commit_message  = "Bump version {old_version} -> {new_version}"
 commit          = true
