@@ -10,21 +10,6 @@ class CliReader:
     sensor_custom_name = None
     sensor_idx = None
 
-    async def info_read(self, dev):
-        print(f'Connected to {self.conn.device_type.name} with version {self.conn.version}')
-    
-    async def sensor_read(self, idx: int, val: float):
-        self.sensor_vals[idx] = val
-    
-    async def energy_read(self, energy):
-        print('Energy readings:')
-        print(f'  Total   {energy[0]}')
-        print(f'  Current {energy[1]}')
-        print(f'  Impulse {energy[2]}')
-    
-    async def sensor_name_read(self, idx: int, name: str):
-        self.sensor_names[idx] = name
-
     async def config_block_read(self, configs: List[ConfigEntry]):
         for i, config_label in enumerate(configs):
             if config_label.value > 0:
@@ -61,43 +46,43 @@ class CliReader:
 
         self.conn = HanazederFP(debug=args.debug)
         await self.conn.open(serial_port=args.serial_port, address=args.address, port=args.port)
-        await self.conn.read_information(self.info_read)
-        await self.conn.wait_for_empty_queue()
+        await self.conn.read_information()
+        print(f'Connected to {self.conn.device_type.name} with version {self.conn.version}')
 
         loop_count = 1000 if args.loop else 1
         
         while loop_count > 0:
             loop_count = loop_count - 1
             if args.energy:
-                await self.conn.read_energy(self.energy_read)
+                energy = await self.conn.read_energy()
+                print('Energy readings:')
+                print(f'  Total   {energy[0]}')
+                print(f'  Current {energy[1]}')
+                print(f'  Impulse {energy[2]}')
 
             if args.sensors:
                 # Read label from fixed list
-                await self.conn.read_config_block(27, 15, self.config_block_read)
-                await self.conn.wait_for_empty_queue()
+                self.config_block_read(await self.conn.read_config_block(27, 15))
                 for i in range(0, 15):
                     # Also read custom name
                     if self.sensor_names[i] is None:
-                        await self.conn.read_sensor_name(i, self.sensor_name_read)
+                        self.sensor_names[i] = await self.conn.read_sensor_name(i)
                 for i in range(0, 15):
-                    if self.sensor_names[i] is not None and self.sensor_names[i] is not "Nicht bel":
-                        await self.conn.read_sensor(i, self.sensor_read)
+                    if self.sensor_names[i] is not None and self.sensor_names[i] != "Nicht bel":
+                        self.sensor_vals[i] = await self.conn.read_sensor(i)
                 
-                await self.conn.wait_for_empty_queue()
                 for i in range(0, 15):
                     self.print_sensor(i)
             elif args.sensor is not None:
                 self.sensor_idx = args.sensor - 1
 
                 print(f'Reading sensor {args.sensor}')
-                await self.conn.read_sensor(self.sensor_idx, self.sensor_read)
+                self.sensor_vals[self.sensor_idx] = await self.conn.read_sensor(self.sensor_idx)
                 # Read label from fixed list
-                await self.conn.read_config_block(27, 15, self.config_block_read)
-                await self.conn.wait_for_empty_queue()
+                self.config_block_read(await self.conn.read_config_block(27, 15))
                 # Also read custom name
                 if self.sensor_names[self.sensor_idx] is None:
-                    await self.conn.read_sensor_name(self.sensor_idx, self.sensor_name_read)
-                await self.conn.wait_for_empty_queue()
+                    self.sensor_names[self.sensor_idx] = await self.conn.read_sensor_name(self.sensor_idx)
                 self.print_sensor(self.sensor_idx)
                 
         return 0

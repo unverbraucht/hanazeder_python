@@ -18,6 +18,11 @@ class NotConnectedError(Exception):
 class ConnectionInvalidError(Exception):
     pass
 
+class RequestTimeoutError(Exception):
+    pass
+
+class ShutdownError(Exception):
+    pass
 class DeviceType(IntEnum):
     FP10 = 0
     FP6 = 1
@@ -127,8 +132,6 @@ SENSOR_LABELS = [
 ]
 
 DecoderCB = Callable[[HanazederPacket], Any]
-
-ParseCB = Callable[[Any], Any]
 class ConfigEntry:
     key = 0
 
@@ -139,13 +142,21 @@ class ConfigEntry:
         self.min_value = data[2]
         self.change_step = data[3]
 
+class HanazederRequestState(IntEnum):
+    UNSENT = 0
+    SENT = 1
+    SUCCESSFUL = 2
+    TIMEOUT = 3
+    SHUTDOWN = 4
 class HanazederRequest:
-    def __init__(self, msg_no: int, type: int, cb: ParseCB, decoder: DecoderCB):
+    result = None
+    def __init__(self, msg_no: int, type: int, decoder: DecoderCB):
         self.msg_no = msg_no
-        self.cb = cb
         self.type = type
         self.decoder = decoder
         self.created = time.monotonic()
+        self.event = asyncio.Event()
+        self.state = HanazederRequestState.UNSENT
 
 class FPProtocol(asyncio.Protocol):
     device = None
@@ -175,9 +186,8 @@ class HanazederFP:
     def __init__(self, debug=False, request_timeout=2):
         self.debug = debug
         self.loop = asyncio.get_running_loop()
-        self.queue_empty_event = asyncio.Event()
-        self.msg_no_lock = asyncio.Lock()
         self.queue_lock = asyncio.Lock()
+        self.msg_no_lock = asyncio.Lock()
         self.request_timeout = request_timeout
     
     async def open(self,
@@ -205,8 +215,6 @@ class HanazederFP:
         # Check queue for stuck messages periodically
         self.loop.create_task(self.check_queue())
     
-    async def wait_for_empty_queue(self):
-        await self.queue_empty_event.wait()
     
     async def get_next_msg_no(self) -> int:
         async with self.msg_no_lock:
@@ -217,13 +225,15 @@ class HanazederFP:
                 self.last_msg_num = 239
             return msg_no
     
-    async def send_msg(self, msg: bytes, cb: ParseCB, decoder: DecoderCB):
+    async def send_msg(self, msg: bytes, decoder: DecoderCB) -> HanazederRequest:
         if self.debug:
             print(f'Sending msg {byte_to_hex(msg)}')
+        request = HanazederRequest(msg[1], msg[2], decoder)
         async with self.queue_lock:
-            self.queue.append(HanazederRequest(msg[1], msg[2], cb, decoder))
-            self.queue_empty_event.clear()
+            self.queue.append(request)
         self.connection.write(msg)
+        request.state = HanazederRequestState.SENT
+        return request
     
     async def read_bytes(self, bytes):
         for byte in bytes:
@@ -245,13 +255,17 @@ class HanazederFP:
                     if now - request.created > self.request_timeout:
                         print(f'Request #{request.msg_no} has timed out')
                         # TODO: resend
+                        request.state = HanazederRequestState.TIMEOUT
+                        request.event.set()
                         self.queue.pop(index)
-                if len(self.queue) == 0:
-                    self.queue_empty_event.set()
             await asyncio.sleep(self.request_timeout)
 
     def shutdown(self):
-        self.running = False            
+        self.running = False       
+        for request in self.queue:
+            request.state = HanazederRequestState.SHUTDOWN
+            request.event.set()
+
 
     async def handle_packet(self, packet: HanazederPacket):
         if self.debug:
@@ -264,22 +278,28 @@ class HanazederFP:
         async with self.queue_lock:
             for index, req in enumerate(self.queue):
                 if req.msg_no == packet.msg_no:
-                    await req.cb(req.decoder(packet))
+                    req.result = req.decoder(packet)
                     found = True
+                    req.state = HanazederRequestState.SUCCESSFUL
+                    req.event.set()
                     self.queue.pop(index)
                     break
             if not found:
                 print(f"Couldn't find message {packet.msg_no} in queue!")
-            else:
-                if len(self.queue) == 0:
-                    self.queue_empty_event.set()
 
+    async def handle_req_response(self, req: HanazederRequest):
+        if req.state == HanazederRequestState.TIMEOUT:
+            raise RequestTimeoutError()
+        elif req.state == HanazederRequestState.SHUTDOWN:
+            raise ShutdownError()
     
     async def create_read_information_msg(self) -> bool:
         return hanazeder_encode_msg(self.HEADER, await self.get_next_msg_no(), b'\x01\x00')
     
-    async def read_information(self, cb: Callable[[None], Any]):
-        await self.send_msg(await self.create_read_information_msg(), cb, self.parse_information_packet)
+    async def read_information(self):
+        req = await self.send_msg(await self.create_read_information_msg(), self.parse_information_packet)
+        await req.event.wait()
+        await self.handle_req_response(req)
     
     def parse_information_packet(self, msg: HanazederPacket):
         response = msg.msg
@@ -291,16 +311,17 @@ class HanazederFP:
             self.version = f'{response[3]}.{response[4]}'
     
     async def create_read_sensor_msg(self, idx: int) -> bytes:
-        request = bytes(b'\x04\x01') + idx.to_bytes(1, byteorder='little')
-        return hanazeder_encode_msg(self.HEADER, await self.get_next_msg_no(), request)
+        request_bytes = bytes(b'\x04\x01') + idx.to_bytes(1, byteorder='little')
+        return hanazeder_encode_msg(self.HEADER, await self.get_next_msg_no(), request_bytes)
     
-    async def read_sensor(self, idx: int, cb: Callable[[int, float], Any]):
+    async def read_sensor(self, idx: int) -> float:
         if not self.connected:
             raise NotConnectedError()
         
-        async def cb_wrapper(value: float):
-            await cb(idx, value)
-        await self.send_msg(await self.create_read_sensor_msg(idx), cb_wrapper, self.parse_sensor_packet)
+        req = await self.send_msg(await self.create_read_sensor_msg(idx), self.parse_sensor_packet)
+        await req.event.wait()
+        await self.handle_req_response(req)
+        return req.result
     
     def parse_sensor_packet(self, msg: HanazederPacket) -> float:
         value = hanazeder_decode_num(self.HEADER, msg.msg)
@@ -310,7 +331,7 @@ class HanazederFP:
         request = bytes(b'\x07\x03') + start.to_bytes(2, byteorder='little') + count.to_bytes(1, byteorder='little')
         return hanazeder_encode_msg(self.HEADER, await self.get_next_msg_no(), request)
     
-    async def read_config_block(self, start: int, count: int, cb: Callable[[List[ConfigEntry]], Any]):
+    async def read_config_block(self, start: int, count: int) -> List[ConfigEntry]:
         if not self.connected:
             raise NotConnectedError()
         
@@ -322,19 +343,23 @@ class HanazederFP:
                 entry = ConfigEntry(start + x, chunk)
                 entries.append(entry)
             return entries
-        await self.send_msg(await self.create_read_config_block_msg(start, count), cb, parse_config_block_packet)
+        req = await self.send_msg(await self.create_read_config_block_msg(start, count), parse_config_block_packet)
+        await req.event.wait()
+        await self.handle_req_response(req)
+        return req.result
 
     async def create_read_sensor_name_msg(self, idx: int) -> bytes:
         request = bytes(b'\x13\x01') + idx.to_bytes(1, byteorder='little')
         return hanazeder_encode_msg(self.HEADER, await self.get_next_msg_no(), request)
     
-    async def read_sensor_name(self, idx: int, cb: Callable[[int, str], Any]):
+    async def read_sensor_name(self, idx: int) -> str:
         if not self.connected:
             raise NotConnectedError()
 
-        async def cb_wrapper(name: str):
-            await cb(idx, name)
-        await self.send_msg(await self.create_read_sensor_name_msg(idx), cb_wrapper, self.parse_sensor_name_packet)
+        req = await self.send_msg(await self.create_read_sensor_name_msg(idx), self.parse_sensor_name_packet)
+        await req.event.wait()
+        await self.handle_req_response(req)
+        return req.result
     
     def parse_sensor_name_packet (self, msg: HanazederPacket) -> str:
         if msg.msg and len(msg.msg) > 1:
@@ -344,13 +369,16 @@ class HanazederFP:
         request = bytes(b'\x20\x03') + dec_to_bytes(start) + count.to_bytes(1, byteorder='little')
         return hanazeder_encode_msg(self.HEADER, await self.get_next_msg_no(), request)
     
-    async def read_debug_block(self, start: int, count: int, cb: Callable[[Any], Any], decoder: DecoderCB) -> bytes:
+    async def read_debug_block(self, start: int, count: int, decoder: DecoderCB) -> Any:
         if not self.connected:
             raise NotConnectedError()
-        await self.send_msg(await self.create_read_debug_block_msg(start, count), cb, decoder)
+        req = await self.send_msg(await self.create_read_debug_block_msg(start, count), decoder)
+        await req.event.wait()
+        await self.handle_req_response(req)
+        return req.result
     
-    async def read_energy(self, cb: Callable[[Tuple[int, int, int]], Any]) -> EnergyReading:
-        await self.read_debug_block(313, 8, cb, self.parse_energy_packet)
+    async def read_energy(self) -> EnergyReading:
+        return await self.read_debug_block(313, 8, self.parse_energy_packet)
     
     def parse_energy_packet(self, msg: HanazederPacket) -> Tuple[int, int, int]:
         total = hanazeder_decode_num(self.HEADER, msg.msg[0:2])
