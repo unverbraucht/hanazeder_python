@@ -10,7 +10,7 @@ class CliReader:
     sensor_custom_name = None
     sensor_idx = None
 
-    async def config_block_read(self, configs: List[ConfigEntry]):
+    def config_block_read(self, configs: List[ConfigEntry]):
         for i, config_label in enumerate(configs):
             if config_label.value > 0:
                 self.sensor_names[i] = SENSOR_LABELS[config_label.value]
