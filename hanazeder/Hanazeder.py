@@ -148,6 +148,7 @@ class HanazederRequestState(IntEnum):
     SUCCESSFUL = 2
     TIMEOUT = 3
     SHUTDOWN = 4
+    DISCONNECTED = 5
 class HanazederRequest:
     result = None
     def __init__(self, msg_no: int, type: int, decoder: DecoderCB):
@@ -172,7 +173,9 @@ class FPProtocol(asyncio.Protocol):
         print('The server closed the connection')
         self.device.connected = False
         # Awake all listeners
-        self.device.queue_empty_event.clear()
+        for request in self.device.queue:
+            request.state = HanazederRequestState.DISCONNECTED
+            request.event.set()
 
 class HanazederFP:
     HEADER = b'\xEE'
@@ -295,6 +298,8 @@ class HanazederFP:
             raise RequestTimeoutError()
         elif req.state == HanazederRequestState.SHUTDOWN:
             raise ShutdownError()
+        elif req.state == HanazederRequestState.DISCONNECTED:
+            raise NotConnectedError()
     
     async def create_read_information_msg(self) -> bool:
         return hanazeder_encode_msg(self.HEADER, await self.get_next_msg_no(), b'\x01\x00')
