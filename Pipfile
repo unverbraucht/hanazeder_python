@@ -17,7 +17,7 @@ cryptography = "*"
 pytest-asyncio = "*"
 
 [requires]
-python_version = "3.7"
+python_version = "3"
 
 [scripts]
 test = "pytest"
