@@ -249,9 +249,10 @@ class HanazederFP:
     
     async def read_byte_async(self):
         byte = self.connection.read(1)
-        packet = self.reader.read(byte[0])
-        if packet:
-            await self.handle_packet(packet)
+        if byte:
+            packet = self.reader.read(byte[0])
+            if packet:
+                await self.handle_packet(packet)
     
     async def check_queue(self):
         while self.connected:
