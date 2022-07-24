@@ -27,7 +27,6 @@ jobs:
           key: ${{ runner.os }}-pipenv-${{ hashFiles('**/Pipfile.lock') }}
 
       - name: Install dependencies
-        if: steps.cache-pipenv.outputs.cache-hit != 'true'
         run: |
           pipenv install --deploy --dev
       - name: Install test annotation plugin
@@ -39,7 +38,7 @@ jobs:
       - name: Build
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags')
         run: |
-          python -m build
+          pipenv run python -m build
       
       - name: Publish package
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags')

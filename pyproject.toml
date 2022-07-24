@@ -26,10 +26,10 @@ dependencies = [
 requires-python = ">=3.6"
 
 [project.optional-dependencies]
-dev = ["pytest", "bumpver", "build", "twine", "pytest-mock"]
+dev = ["pytest", "bumpver", "build", "twine", "pytest-mock", "pytest-asyncio"]
 
 [project.urls]
-Homepage = "https://github.com/unverbraucht/serial_hanazeder"
+Homepage = "https://github.com/unverbraucht/hanazeder_python"
 
 [project.scripts]
 hanazeder_read = "hanazeder.read:main"
