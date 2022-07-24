@@ -31,7 +31,8 @@ jobs:
         run: |
           pipenv install --deploy --dev
       - name: Install test annotation plugin
-          run: pipenv run pip install pytest-github-actions-annotate-failures
+        run: |
+          pipenv run pip install pytest-github-actions-annotate-failures
       - name: Run test suite
         run: |
           pipenv run test -v
