@@ -1,4 +1,3 @@
-#from ..hanazeder.encoding import dec_to_hex, hex_to_byte, byte_to_hex
 from ..hanazeder.encoding import *
 
 def test_hex_to_byte():
