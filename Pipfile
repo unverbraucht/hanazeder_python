@@ -14,6 +14,10 @@ build = "*"
 twine = "*"
 bumpver = "*"
 cryptography = "*"
+pytest-asyncio = "*"
 
 [requires]
-python_version = "3"
+python_version = "3.7"
+
+[scripts]
+test = "pytest"

@@ -2,17 +2,14 @@ from ..hanazeder.Hanazeder import HanazederFP
 from ..hanazeder.encoding import hex_to_byte
 
 from unittest.mock import MagicMock
+import pytest
 
-def test_create_instance(mocker):
+@pytest.mark.asyncio
+async def test_create_instance(mocker):
     mocker.patch('serial.Serial')
     inst = HanazederFP()
-    assert inst.connected == False
+    assert inst.connected == True
 
-def test_read_register_msg(mocker):
-    mocker.patch('serial.Serial')
-    inst = HanazederFP()
-    msg = inst.create_read_register_msg(1)
-    assert msg == hex_to_byte('EE01040100D5')
 
 # def test_connection(mocker):
 #     def mocked_read():
