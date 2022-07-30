@@ -226,7 +226,7 @@ class HanazederFP:
     
     async def send_msg(self, msg: bytes, decoder: DecoderCB) -> HanazederRequest:
         if self.debug:
-            logger.debug('Sending msg %s', byte_to_hex(msg))
+            logger.debug('Sending msg #%d: %s', msg[1], byte_to_hex(msg))
         request = HanazederRequest(msg[1], msg[2], decoder)
         async with self.queue_lock:
             self.queue.append(request)
