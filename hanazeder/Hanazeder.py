@@ -155,23 +155,31 @@ class HanazederRequestState(IntEnum):
     DISCONNECTED = 5
 class HanazederRequest:
     result = None
-    def __init__(self, msg_no: int, type: int, decoder: DecoderCB):
+    def __init__(self, msg_no: int, type: int, decoder: DecoderCB, msg: bytes):
         self.msg_no = msg_no
         self.type = type
         self.decoder = decoder
         self.created = time.monotonic()
         self.event = asyncio.Event()
+        self.msg = msg
         self.state = HanazederRequestState.UNSENT
 
 class FPProtocol(asyncio.Protocol):
     device = None
     def connection_made(self, transport):
         self.connection = transport
+        if hasattr(self.connection, 'serial'):
+            transport.serial.rts = True
 
     def data_received(self, data):
         if self.device.debug:
             logger.debug('Data received: %s', data)
-        asyncio.get_event_loop().create_task(self.device.read_bytes(data))
+        self.device.read_bytes(data)
+        logger.debug('Done with read_bytes')
+        if hasattr(self.connection, 'serial'):
+            self.connection.resume_reading()
+            self.connection.serial.rts = True
+        #asyncio.get_event_loop().create_task(self.device.read_bytes(data))
 
     def connection_lost(self, exc):
         logger.warn('The server closed the connection')
@@ -180,6 +188,14 @@ class FPProtocol(asyncio.Protocol):
         for request in self.device.queue:
             request.state = HanazederRequestState.DISCONNECTED
             request.event.set()
+
+    def pause_writing(self):
+        print('pause writing')
+        print(self.transport.get_write_buffer_size())
+
+    def resume_writing(self):
+        print(self.transport.get_write_buffer_size())
+        print('resume writing')
 
 class HanazederFP:
     HEADER = b'\xEE'
@@ -214,7 +230,7 @@ class HanazederFP:
         proto.device = self
         self.reader = HanazederReader(self.connection, self.HEADER, self.debug)
         # Check queue for stuck messages periodically
-        self.loop.create_task(self.check_queue())
+        self.queue_check_task = self.loop.create_task(self.check_queue(), name="check_queue")
     
     
     async def get_next_msg_no(self) -> int:
@@ -229,31 +245,39 @@ class HanazederFP:
     async def send_msg(self, msg: bytes, decoder: DecoderCB) -> HanazederRequest:
         if self.debug:
             logger.debug('Sending msg #%d: %s', msg[1], byte_to_hex(msg))
-        request = HanazederRequest(msg[1], msg[2], decoder)
+        request = HanazederRequest(msg[1], msg[2], decoder, msg)
         async with self.queue_lock:
             self.queue.append(request)
-        self.connection.write(msg)
-        request.state = HanazederRequestState.SENT
-        return request
+            self.connection.write(msg)
+            request.state = HanazederRequestState.SENT
+            return request
     
-    async def read_bytes(self, bytes):
+    def read_bytes(self, bytes):
+        logger.debug('read_bytes')
         for byte in bytes:
             packet = self.reader.read(byte)
             if packet:
-                await self.handle_packet(packet)
+                self.handle_packet(packet)
     
     async def check_queue(self):
         while self.connected:
             now = time.monotonic()
             async with self.queue_lock:
+                logger.debug('queue check starting, getting lock')
                 for index, request in enumerate(self.queue):
                     if now - request.created > self.request_timeout:
                         logger.warn('Request #%d has timed out', request.msg_no)
-                        # TODO: resend
-                        request.state = HanazederRequestState.TIMEOUT
-                        request.event.set()
-                        self.queue.pop(index)
+                        #request.msg_no = await self.get_next_msg_no()
+                        #request.msg = hanazeder_encode_msg(self.HEADER, request.msg_no, request.msg[2:-1])
+                        self.connection.write(request.msg)
+                        if self.debug:
+                            logger.debug('Resending msg #%d: %s', request.msg[1], byte_to_hex(request.msg))
+                        #request.state = HanazederRequestState.TIMEOUT
+                        #request.event.set()
+                        #self.queue.pop(index)
+            logger.debug('queue check done')
             await asyncio.sleep(self.request_timeout)
+          
 
     def shutdown(self):
         self.running = False       
@@ -262,7 +286,7 @@ class HanazederFP:
             request.event.set()
 
 
-    async def handle_packet(self, packet: HanazederPacket):
+    def handle_packet(self, packet: HanazederPacket):
         if self.debug:
             packet_debug = ""
             for req in self.queue:
@@ -270,17 +294,17 @@ class HanazederFP:
             logger.debug('Packet read #%d type %d: %s.', packet.msg_no, packet.msg_type, packet.msg)
             logger.debug('Queue: %s', packet_debug)
         found = False
-        async with self.queue_lock:
-            for index, req in enumerate(self.queue):
-                if req.msg_no == packet.msg_no:
-                    req.result = req.decoder(packet)
-                    found = True
-                    req.state = HanazederRequestState.SUCCESSFUL
-                    req.event.set()
-                    self.queue.pop(index)
-                    break
-            if not found:
-                logger.error(f"Couldn't find message {packet.msg_no} in queue!")
+        #async with self.queue_lock:
+        for index, req in enumerate(self.queue):
+            if req.msg_no == packet.msg_no:
+                req.result = req.decoder(packet)
+                found = True
+                req.state = HanazederRequestState.SUCCESSFUL
+                req.event.set()
+                self.queue.pop(index)
+                break
+        if not found:
+            logger.error(f"Couldn't find message {packet.msg_no} in queue!")
 
     async def handle_req_response(self, req: HanazederRequest):
         if req.state == HanazederRequestState.TIMEOUT:

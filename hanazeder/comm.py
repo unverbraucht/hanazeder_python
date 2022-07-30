@@ -86,7 +86,10 @@ class HanazederReader:
         elif self.state == ReaderState.EXPECTING_SIZE:
             self.packet.msg_size = byte
             self.packet.msg = bytearray()
-            self.state = ReaderState.READING_PAYLOAD
+            if self.packet.msg_size == 0:
+                self.state = ReaderState.EXPECTING_CHECKSUM
+            else:
+                self.state = ReaderState.READING_PAYLOAD
         elif self.state == ReaderState.READING_PAYLOAD or self.state == ReaderState.ESCAPING:
             self.packet.msg += bytearray(byte.to_bytes(1, byteorder='little'))
             self.packet.msg_size = self.packet.msg_size - 1

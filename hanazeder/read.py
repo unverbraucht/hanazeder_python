@@ -48,7 +48,7 @@ class CliReader:
         if not args.sensor and not args.energy and not args.sensors:
             print("Don't know what to do, please add --energy, --sensors and/or --sensor")
 
-        self.conn = HanazederFP(debug=args.debug, request_timeout=5000)
+        self.conn = HanazederFP(debug=args.debug, request_timeout=2)
         await self.conn.open(serial_port=args.serial_port, address=args.address, port=args.port)
         await self.conn.read_information()
         print(f'Connected to {self.conn.device_type.name} with version {self.conn.version}')
@@ -93,5 +93,5 @@ class CliReader:
 
 if __name__ == '__main__':
     instance = CliReader()
-    sys.exit(asyncio.run(instance.main())
+    sys.exit(asyncio.run(instance.main(), debug=True)
 )
