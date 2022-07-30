@@ -1,12 +1,12 @@
 from ast import Call
 import asyncio
-import serial
+import serial_asyncio
 import time
 from enum import IntEnum
 from typing import Any, Callable, List, Tuple
 
 from .types import SerialOrNetwork, EnergyReading
-from .comm import HanazederPacket, HanazederReader, hanazeder_encode_msg, hanazeder_read, hanazeder_decode_num
+from .comm import HanazederPacket, HanazederReader, hanazeder_encode_msg, hanazeder_decode_num
 from .encoding import dec_to_bytes, byte_to_hex
 
 class ConnectError(Exception):
@@ -199,22 +199,15 @@ class HanazederFP:
             port=None,
             timeout=1000):
         if serial_port:
-            self.connection = serial.Serial(
-                port=serial_port,
-                baudrate = 38400,
-                parity=serial.PARITY_NONE,
-                stopbits=serial.STOPBITS_ONE,
-                bytesize=serial.EIGHTBITS,
-                timeout=timeout
+            (self.connection, proto) = await serial_asyncio.create_serial_connection(
+                self.loop, FPProtocol, serial_port, baudrate=38400, timeout = timeout
             )
         elif address and port:
             (self.connection, proto) = await self.loop.create_connection(FPProtocol, address, port)
-            proto.device = self
         else:
             raise ConnectionInvalidError("Specify either address and port or serial port")
+        proto.device = self
         self.reader = HanazederReader(self.connection, self.HEADER, self.debug)
-        if serial_port:
-            self.loop.add_reader(self.connection, self.read_byte)
         # Check queue for stuck messages periodically
         self.loop.create_task(self.check_queue())
     
@@ -241,16 +234,6 @@ class HanazederFP:
     async def read_bytes(self, bytes):
         for byte in bytes:
             packet = self.reader.read(byte)
-            if packet:
-                await self.handle_packet(packet)
-    
-    def read_byte(self):
-        self.loop.create_task(self.read_byte_async())
-    
-    async def read_byte_async(self):
-        byte = self.connection.read(1)
-        if byte:
-            packet = self.reader.read(byte[0])
             if packet:
                 await self.handle_packet(packet)
     

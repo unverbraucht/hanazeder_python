@@ -6,6 +6,7 @@ name = "pypi"
 [packages]
 pyserial = "*"
 crccheck = "*"
+pyserial-asyncio = "*"
 
 [dev-packages]
 pytest = "*"
