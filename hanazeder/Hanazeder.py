@@ -4,10 +4,13 @@ import serial_asyncio
 import time
 from enum import IntEnum
 from typing import Any, Callable, List, Tuple
+import logging
 
 from .types import SerialOrNetwork, EnergyReading
 from .comm import HanazederPacket, HanazederReader, hanazeder_encode_msg, hanazeder_decode_num
 from .encoding import dec_to_bytes, byte_to_hex
+
+logger = logging.getLogger('hanazeder')
 
 class ConnectError(Exception):
     pass
@@ -166,11 +169,11 @@ class FPProtocol(asyncio.Protocol):
 
     def data_received(self, data):
         if self.device.debug:
-            print(f'Data received: {data}')
+            logger.debug('Data received: %s', data)
         asyncio.get_event_loop().create_task(self.device.read_bytes(data))
 
     def connection_lost(self, exc):
-        print('The server closed the connection')
+        logger.warn('The server closed the connection')
         self.device.connected = False
         # Awake all listeners
         for request in self.device.queue:
@@ -223,7 +226,7 @@ class HanazederFP:
     
     async def send_msg(self, msg: bytes, decoder: DecoderCB) -> HanazederRequest:
         if self.debug:
-            print(f'Sending msg {byte_to_hex(msg)}')
+            logger.debug('Sending msg %s', byte_to_hex(msg))
         request = HanazederRequest(msg[1], msg[2], decoder)
         async with self.queue_lock:
             self.queue.append(request)
@@ -243,7 +246,7 @@ class HanazederFP:
             async with self.queue_lock:
                 for index, request in enumerate(self.queue):
                     if now - request.created > self.request_timeout:
-                        print(f'Request #{request.msg_no} has timed out')
+                        logger.warn('Request #%d has timed out', request.msg_no)
                         # TODO: resend
                         request.state = HanazederRequestState.TIMEOUT
                         request.event.set()
@@ -262,8 +265,8 @@ class HanazederFP:
             packet_debug = ""
             for req in self.queue:
                 packet_debug = f"{packet_debug} #{req.msg_no}"
-            print(f'Packet read #{packet.msg_no} type {packet.msg_type}: {packet.msg}.')
-            print(f'Queue: {packet_debug}')
+            logger.debug('Packet read #%d type %d: %s.', packet.msg_no, packet.msg_type, packet.msg)
+            logger.debug('Queue: %s', packet_debug)
         found = False
         async with self.queue_lock:
             for index, req in enumerate(self.queue):
@@ -275,7 +278,7 @@ class HanazederFP:
                     self.queue.pop(index)
                     break
             if not found:
-                print(f"Couldn't find message {packet.msg_no} in queue!")
+                logger.error(f"Couldn't find message {packet.msg_no} in queue!")
 
     async def handle_req_response(self, req: HanazederRequest):
         if req.state == HanazederRequestState.TIMEOUT:

@@ -3,6 +3,10 @@ from typing import List
 from .Hanazeder import ConfigEntry, HanazederFP, SENSOR_LABELS
 import argparse
 import sys
+import logging
+
+FORMAT = '%(asctime)s %(message)s'
+logging.basicConfig(format=FORMAT, level=logging.DEBUG)
 
 class CliReader:
     sensor_vals = [None] * 15

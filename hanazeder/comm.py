@@ -2,8 +2,10 @@ from enum import IntEnum
 from .types import SerialOrNetwork
 from .encoding import *
 
-from serial import Serial
+import logging
 from crccheck.crc import Crc8Maxim
+
+logger = logging.getLogger('hanazeder.comm')
 
 SENSOR_GONE = b'\xFF\x7F'
 
@@ -56,12 +58,12 @@ class HanazederReader:
                 and self.state != ReaderState.ESCAPING:
             self.crc.process(byte.to_bytes(1, byteorder='little'))
         if self.debug:
-            print(f'Handle_byte {byte} state in {self.state.name}')
+            logger.debug('Handle_byte %X state in %s', byte, self.state.name)
         
         if byte == self.header and self.state != ReaderState.LOOKING_FOR_HEADER \
                 and self.state != ReaderState.ESCAPING:
             if self.debug:
-                print(f'Found escape byte, skipping')
+                logger.debug('Found escape byte, skipping')
             self.state_before_escaping = self.state
             self.state = ReaderState.ESCAPING
             return
@@ -96,12 +98,12 @@ class HanazederReader:
             self.state = ReaderState.LOOKING_FOR_HEADER
             calculated_crc = self.crc.finalbytes()
             if calculated_crc[0] != byte:
-                print('Wrong checksum')
+                logger.error('Wrong checksum')
             else:
                 # Packet fully read
                 return self.packet
         if self.debug:
-            print(f'Handle_byte state out {self.state}')
+            logger.debug('Handle_byte state out %s', self.state.name)
 
 
 def hanazeder_decode_num(header, value) -> float:
