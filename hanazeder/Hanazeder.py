@@ -5,6 +5,7 @@ import time
 from enum import IntEnum
 from typing import Any, Callable, List, Tuple
 import logging
+import serial
 
 from .types import SerialOrNetwork, EnergyReading
 from .comm import HanazederPacket, HanazederReader, hanazeder_encode_msg, hanazeder_decode_num
@@ -203,7 +204,8 @@ class HanazederFP:
             timeout=1000):
         if serial_port:
             (self.connection, proto) = await serial_asyncio.create_serial_connection(
-                self.loop, FPProtocol, serial_port, baudrate=38400, timeout = timeout
+                self.loop, FPProtocol, serial_port, baudrate=38400, timeout = timeout,
+                rtscts = True, bytesize=serial.EIGHTBITS, stopbits = serial.STOPBITS_ONE, parity=serial.PARITY_NONE 
             )
         elif address and port:
             (self.connection, proto) = await self.loop.create_connection(FPProtocol, address, port)
