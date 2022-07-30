@@ -249,6 +249,9 @@ class HanazederFP:
         async with self.queue_lock:
             self.queue.append(request)
             self.connection.write(msg)
+            if hasattr(self.connection, 'serial'):
+                self.connection.serial.flush()
+                logger.debug('flushing serial')
             request.state = HanazederRequestState.SENT
             return request
     
@@ -270,6 +273,9 @@ class HanazederFP:
                         #request.msg_no = await self.get_next_msg_no()
                         #request.msg = hanazeder_encode_msg(self.HEADER, request.msg_no, request.msg[2:-1])
                         self.connection.write(request.msg)
+                        if hasattr(self.connection, 'serial'):
+                            self.connection.serial.flush()
+                            logger.debug('flushing serial')
                         if self.debug:
                             logger.debug('Resending msg #%d: %s', request.msg[1], byte_to_hex(request.msg))
                         #request.state = HanazederRequestState.TIMEOUT

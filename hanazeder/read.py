@@ -21,6 +21,9 @@ class CliReader:
 
     def print_sensor(self, i):
         print (f'Sensor {self.sensor_names[i]} ({i}) has value {self.sensor_vals[i]}')
+    
+    async def get_sensor_name(self, i):
+        return self.sensor_names[i]
 
     async def main(self) -> int:
         parser = argparse.ArgumentParser()
@@ -49,11 +52,14 @@ class CliReader:
             print("Don't know what to do, please add --energy, --sensors and/or --sensor")
 
         self.conn = HanazederFP(debug=args.debug, request_timeout=2)
-        await self.conn.open(serial_port=args.serial_port, address=args.address, port=args.port)
+        await self.conn.open(serial_port=args.serial_port, address=args.address, port=args.port, timeout=0.2)
         await self.conn.read_information()
         print(f'Connected to {self.conn.device_type.name} with version {self.conn.version}')
 
         loop_count = 1000 if args.loop else 1
+        
+        async def dummy():
+            return None
         
         while loop_count > 0:
             loop_count = loop_count - 1
@@ -66,14 +72,20 @@ class CliReader:
 
             if args.sensors:
                 # Read label from fixed list
+                name_tasks = []
+                
                 self.config_block_read(await self.conn.read_config_block(27, 15))
                 for i in range(0, 15):
                     # Also read custom name
                     if self.sensor_names[i] is None:
                         self.sensor_names[i] = await self.conn.read_sensor_name(i)
+                    #else:
+                    #    values_tasks.append(self.get_sensor_name(i))
+                values_tasks = []
                 for i in range(0, 15):
-                    if self.sensor_names[i] is not None and self.sensor_names[i] != "Nicht bel":
-                        self.sensor_vals[i] = await self.conn.read_sensor(i)
+                    values_tasks.append(self.conn.read_sensor(i))
+                
+                self.sensor_vals = await asyncio.gather(*values_tasks)
                 
                 for i in range(0, 15):
                     self.print_sensor(i)
