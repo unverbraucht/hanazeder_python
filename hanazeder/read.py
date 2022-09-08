@@ -49,8 +49,8 @@ class CliReader:
         if args.address and not args.port:
             print('Specify port together with address')
             return 2
-        if not args.sensor and not args.energy and not args.sensors:
-            print("Don't know what to do, please add --energy, --sensors and/or --sensor")
+        if not args.sensor and not args.energy and not args.sensors and not args.outlets:
+            print("Don't know what to do, please add --energy, --outlets, --sensors and/or --sensor")
 
         self.conn = HanazederFP(debug=args.debug, request_timeout=2)
         await self.conn.open(serial_port=args.serial_port, address=args.address, port=args.port, timeout=0.2)
