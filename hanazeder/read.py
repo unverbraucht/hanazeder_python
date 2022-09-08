@@ -33,6 +33,7 @@ class CliReader:
                         type=int)
         parser.add_argument("--sensors", help="read all sensors", action="store_true")
         parser.add_argument("--energy", help="read energy values", action="store_true")
+        parser.add_argument("--outlets", help="read outlet/pump values", action="store_true")
         parser.add_argument("--loop", help="read values in a loop", action="store_true")
         parser.add_argument("--debug", help="print low-level messages", action="store_true")
         parser.add_argument("--address", help="connect to HOSTNAME, needs port as well",
@@ -63,6 +64,9 @@ class CliReader:
         
         while loop_count > 0:
             loop_count = loop_count - 1
+            if args.outlets:
+                outlets = await self.conn.read_outlets()
+                print(f'Outlet states: {outlets}')
             if args.energy:
                 energy = await self.conn.read_energy()
                 print('Energy readings:')

@@ -413,4 +413,11 @@ class HanazederFP:
         impulse = hanazeder_decode_num(msg.msg[4:6])
         return (total, current, impulse)
     
-
+    async def read_outlets(self) -> EnergyReading:
+        return await self.read_debug_block(211, 10, self.parse_outlets_packet)
+    
+    def parse_outlets_packet(self, msg: HanazederPacket) -> Tuple[int, int, int, int, int, int, int, int, int, int]:
+        states = ()
+        for state in msg.msg:
+            states = states + (False if state == 0 else True, )
+        return states
