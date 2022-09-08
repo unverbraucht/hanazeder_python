@@ -109,10 +109,10 @@ class HanazederReader:
             logger.debug('Handle_byte state out %s', self.state.name)
 
 
-def hanazeder_decode_num(header, value) -> float:
+def hanazeder_decode_num(value, signed=True) -> float:
     if value == SENSOR_GONE:
         return None
-    int_val = int.from_bytes(value, byteorder='little', signed=True)
+    int_val = int.from_bytes(value, byteorder='little', signed=signed)
     return int_val / 10
 
 def hanazeder_decode_byte(byte: bytes) -> int:

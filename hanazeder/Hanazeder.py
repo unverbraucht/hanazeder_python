@@ -351,7 +351,7 @@ class HanazederFP:
         return req.result
     
     def parse_sensor_packet(self, msg: HanazederPacket) -> float:
-        value = hanazeder_decode_num(self.HEADER, msg.msg)
+        value = hanazeder_decode_num(msg.msg)
         return value
     
     async def create_read_config_block_msg(self, start: int, count: int) -> bytes:
@@ -408,9 +408,9 @@ class HanazederFP:
         return await self.read_debug_block(313, 8, self.parse_energy_packet)
     
     def parse_energy_packet(self, msg: HanazederPacket) -> Tuple[int, int, int]:
-        total = hanazeder_decode_num(self.HEADER, msg.msg[0:2])
-        current = hanazeder_decode_num(self.HEADER, msg.msg[2:4])
-        impulse = hanazeder_decode_num(self.HEADER, msg.msg[4:6])
+        total = hanazeder_decode_num(msg.msg[0:2], False)
+        current = hanazeder_decode_num(msg.msg[2:4])
+        impulse = hanazeder_decode_num(msg.msg[4:6])
         return (total, current, impulse)
     
 

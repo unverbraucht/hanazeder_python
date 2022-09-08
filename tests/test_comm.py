@@ -6,10 +6,10 @@ import pytest
 HEADER=b'\xEE'
 
 def test_read_sensor():
-    assert hanazeder_decode_num(HEADER, b'\x55\x01') == 34.1
+    assert hanazeder_decode_num(b'\x55\x01') == 34.1
 
 def test_read_nonexistant():
-    assert hanazeder_decode_num(HEADER, b'\xFF\x7F') == None
+    assert hanazeder_decode_num(b'\xFF\x7F') == None
 
 def test_hanazeder_read():
     fake_stream = io.BytesIO(hex_to_byte("EE03F0025501A6"))
