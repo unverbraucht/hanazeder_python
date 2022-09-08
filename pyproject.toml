@@ -21,7 +21,7 @@ classifiers = [
 keywords = ["heating", "smart home", "hanazeder", "pump"]
 dependencies = [
     "crccheck",
-    "pyserial",
+    "pyserial-asyncio>=0.6",
 ]
 requires-python = ">=3.6"
 
